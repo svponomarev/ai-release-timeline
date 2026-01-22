@@ -30,16 +30,14 @@ const ALLOWED_COMPANIES = [
   "meta",
   "google",
   "mistral",
+  "anysphere",
 ];
 
-// Coding tools we want to track (regardless of company)
+// Coding tools we want to track (only from major AI companies)
 const CODING_TOOL_KEYWORDS = [
   "claude code",
   "codex",
   "copilot",
-  "cursor",
-  "aider",
-  "cody",
   "code interpreter",
   "coding assistant",
 ];
@@ -92,17 +90,12 @@ function isMajorRelease(
     return false;
   }
 
-  // Accept if it's from an allowed major company
-  if (isFromAllowedCompany(company)) {
-    return true;
+  // Must be from an allowed major company
+  if (!isFromAllowedCompany(company)) {
+    return false;
   }
 
-  // Accept if it's a coding tool we care about
-  if (isCodingTool(title, content)) {
-    return true;
-  }
-
-  return false;
+  return true;
 }
 
 async function fetchWithTimeout(

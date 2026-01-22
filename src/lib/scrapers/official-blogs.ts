@@ -1,101 +1,21 @@
 import { prisma } from "@/lib/db";
+import { analyzeSentiment } from "./reddit";
 
-interface ParsedRelease {
-  name: string;
+/**
+ * Official Blogs Scraper - Reviews Only
+ *
+ * This scraper fetches posts from official company blogs (Anthropic, OpenAI, Google, Meta)
+ * and links them as "official" reviews to existing releases in the database.
+ *
+ * It does NOT create new releases - that's handled by the Epoch AI scraper.
+ */
+
+interface BlogPost {
+  title: string;
+  content: string;
+  link: string;
+  pubDate: Date;
   company: string;
-  category: "model" | "tool";
-  releaseDate: Date;
-  summary: string;
-  features: string[];
-  pricing?: string;
-  docsUrl: string;
-  sourceUrl: string;
-}
-
-// Keywords that indicate a release announcement
-const RELEASE_KEYWORDS = [
-  "introducing",
-  "announcing",
-  "launch",
-  "release",
-  "new model",
-  "available now",
-  "general availability",
-];
-
-// Allowed companies for major AI releases
-const ALLOWED_COMPANIES = [
-  "openai",
-  "anthropic",
-  "meta",
-  "google",
-  "mistral",
-  "anysphere",
-];
-
-// Coding tools we want to track (only from major AI companies)
-const CODING_TOOL_KEYWORDS = [
-  "claude code",
-  "codex",
-  "copilot",
-  "code interpreter",
-  "coding assistant",
-];
-
-// Keywords to determine category
-const MODEL_KEYWORDS = [
-  "model",
-  "llm",
-  "gpt",
-  "claude",
-  "gemini",
-  "llama",
-  "language model",
-];
-
-const TOOL_KEYWORDS = ["api", "sdk", "tool", "playground", "assistant", "code"];
-
-function categorizeRelease(title: string, content: string): "model" | "tool" {
-  const text = `${title} ${content}`.toLowerCase();
-
-  const modelScore = MODEL_KEYWORDS.filter((kw) => text.includes(kw)).length;
-  const toolScore = TOOL_KEYWORDS.filter((kw) => text.includes(kw)).length;
-
-  return modelScore >= toolScore ? "model" : "tool";
-}
-
-function isCodingTool(title: string, content: string): boolean {
-  const text = `${title} ${content}`.toLowerCase();
-  return CODING_TOOL_KEYWORDS.some((kw) => text.includes(kw));
-}
-
-function isFromAllowedCompany(company: string): boolean {
-  return ALLOWED_COMPANIES.some((allowed) =>
-    company.toLowerCase().includes(allowed)
-  );
-}
-
-function isReleaseAnnouncement(title: string, content: string): boolean {
-  const text = `${title} ${content}`.toLowerCase();
-  return RELEASE_KEYWORDS.some((kw) => text.includes(kw));
-}
-
-function isMajorRelease(
-  title: string,
-  content: string,
-  company: string
-): boolean {
-  // Must have release keywords
-  if (!isReleaseAnnouncement(title, content)) {
-    return false;
-  }
-
-  // Must be from an allowed major company
-  if (!isFromAllowedCompany(company)) {
-    return false;
-  }
-
-  return true;
 }
 
 async function fetchWithTimeout(
@@ -119,23 +39,22 @@ async function fetchWithTimeout(
   }
 }
 
-// Parse RSS feed and extract potential releases
+// Parse RSS feed and extract blog posts
 async function parseRSSFeed(
   rssUrl: string,
   company: string
-): Promise<ParsedRelease[]> {
+): Promise<BlogPost[]> {
   try {
     const response = await fetchWithTimeout(rssUrl);
     if (!response.ok) return [];
 
     const xml = await response.text();
-    const releases: ParsedRelease[] = [];
+    const posts: BlogPost[] = [];
 
-    // Simple RSS parsing (for production, use a proper RSS parser library)
+    // Simple RSS parsing
     const itemMatches = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
 
-    for (const item of itemMatches.slice(0, 10)) {
-      // Process last 10 items
+    for (const item of itemMatches.slice(0, 20)) {
       const title =
         item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] ||
         item.match(/<title>(.*?)<\/title>/)?.[1] ||
@@ -147,35 +66,63 @@ async function parseRSSFeed(
         "";
 
       const link = item.match(/<link>(.*?)<\/link>/)?.[1] || "";
-
       const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || "";
 
-      if (title && isMajorRelease(title, description, company)) {
-        const category = isCodingTool(title, description)
-          ? "tool"
-          : categorizeRelease(title, description);
-
-        releases.push({
-          name: title,
-          company: company,
-          category,
-          releaseDate: pubDate ? new Date(pubDate) : new Date(),
-          summary: description.slice(0, 200).replace(/<[^>]*>/g, "") + "...",
-          features: [], // Would need additional parsing
-          docsUrl: link,
-          sourceUrl: link,
+      if (title && link) {
+        posts.push({
+          title,
+          content: description.replace(/<[^>]*>/g, "").slice(0, 1000),
+          link,
+          pubDate: pubDate ? new Date(pubDate) : new Date(),
+          company,
         });
       }
     }
 
-    return releases;
+    return posts;
   } catch (error) {
     console.error(`Error parsing RSS from ${rssUrl}:`, error);
     return [];
   }
 }
 
-// Main function to scrape all official blogs
+// Check if a blog post mentions a release
+function postMentionsRelease(
+  post: BlogPost,
+  releaseName: string,
+  releaseCompany: string
+): boolean {
+  const text = `${post.title} ${post.content}`.toLowerCase();
+  const releaseNameLower = releaseName.toLowerCase();
+
+  // Must be from the same company
+  if (post.company.toLowerCase() !== releaseCompany.toLowerCase()) {
+    return false;
+  }
+
+  // Check for release name mention
+  if (text.includes(releaseNameLower)) {
+    return true;
+  }
+
+  // Check for variations (e.g., "GPT-4" vs "GPT4" vs "GPT 4")
+  const nameVariations = [
+    releaseNameLower,
+    releaseNameLower.replace(/-/g, ""),
+    releaseNameLower.replace(/-/g, " "),
+    releaseNameLower.replace(/\s+/g, "-"),
+  ];
+
+  for (const variation of nameVariations) {
+    if (text.includes(variation)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Main function to scrape official blogs for reviews
 export async function scrapeOfficialBlogs(): Promise<{
   added: number;
   errors: string[];
@@ -183,52 +130,69 @@ export async function scrapeOfficialBlogs(): Promise<{
   const errors: string[] = [];
   let added = 0;
 
-  // Get enabled RSS/blog sources from database
+  // Get enabled RSS/blog sources from major AI companies (not independent blogs)
   const sources = await prisma.scraperSource.findMany({
     where: {
       enabled: true,
       type: { in: ["rss", "blog"] },
+      company: {
+        in: ["Anthropic", "OpenAI", "Google", "Meta", "Mistral AI"],
+      },
     },
   });
 
   if (sources.length === 0) {
-    return { added: 0, errors: ["No RSS/blog sources configured"] };
+    return { added: 0, errors: ["No official blog sources configured"] };
+  }
+
+  // Get all releases to match against
+  const releases = await prisma.release.findMany({
+    select: { id: true, name: true, company: true },
+  });
+
+  if (releases.length === 0) {
+    return { added: 0, errors: ["No releases in database to match"] };
   }
 
   for (const source of sources) {
     try {
-      const releases = await parseRSSFeed(source.url, source.company || source.name);
+      const posts = await parseRSSFeed(source.url, source.company || source.name);
+      console.log(`Fetched ${posts.length} posts from ${source.name}`);
 
-      for (const release of releases) {
-        // Check if already exists
-        const existing = await prisma.release.findFirst({
-          where: {
-            OR: [
-              { sourceUrl: release.sourceUrl },
-              {
-                AND: [{ name: release.name }, { company: release.company }],
+      for (const post of posts) {
+        // Check each release to see if this post mentions it
+        for (const release of releases) {
+          if (postMentionsRelease(post, release.name, release.company)) {
+            // Check if review already exists
+            const existing = await prisma.review.findFirst({
+              where: {
+                releaseId: release.id,
+                sourceUrl: post.link,
               },
-            ],
-          },
-        });
+            });
 
-        if (!existing) {
-          await prisma.release.create({
-            data: {
-              name: release.name,
-              company: release.company,
-              category: release.category,
-              releaseDate: release.releaseDate,
-              summary: release.summary,
-              features: JSON.stringify(release.features),
-              pricing: release.pricing,
-              docsUrl: release.docsUrl,
-              sourceUrl: release.sourceUrl,
-            },
-          });
-          added++;
+            if (!existing) {
+              const reviewContent = `[Official Announcement] ${post.title}\n\n${post.content.slice(0, 400)}`;
+
+              await prisma.review.create({
+                data: {
+                  releaseId: release.id,
+                  source: "blog",
+                  author: `${post.company} (Official)`,
+                  content: reviewContent,
+                  sentiment: "positive", // Official announcements are always positive
+                  sourceUrl: post.link,
+                },
+              });
+              added++;
+              console.log(`Added official review for ${release.name} from ${post.company}`);
+            }
+          }
         }
       }
+
+      // Rate limiting between sources
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     } catch (error) {
       const message = `Error scraping ${source.name}: ${error instanceof Error ? error.message : "Unknown error"}`;
       errors.push(message);

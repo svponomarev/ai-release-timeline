@@ -11,18 +11,21 @@ datasource db {
 }
 
 model Release {
-  id          String   @id @default(cuid())
-  name        String   // "GPT-5", "Claude Code 1.0"
-  company     String   // "OpenAI", "Anthropic"
-  category    String   // "model" or "tool"
-  releaseDate DateTime
-  summary     String   // one-line description
-  features    String   // key features (JSON or markdown)
-  pricing     String?  // pricing info
-  docsUrl     String   // official docs link
-  sourceUrl   String   // where we found the announcement
-  createdAt   DateTime @default(now())
-  reviews     Review[]
+  id              String   @id @default(cuid())
+  name            String   // "GPT-5", "Claude Code 1.0"
+  company         String   // "OpenAI", "Anthropic"
+  category        String   // "model" or "tool"
+  releaseDate     DateTime
+  summary         String   // one-line description
+  features        String   // key features (JSON or markdown)
+  pricing         String?  // pricing info
+  docsUrl         String   // official docs link
+  sourceUrl       String   // where we found the announcement
+  isCodingRelated Boolean  @default(false) // true if it's a coding model/tool
+  domain          String?  // "Language", "Vision", "Multimodal", etc. (from Epoch AI)
+  parameters      String?  // parameter count, e.g., "175B"
+  createdAt       DateTime @default(now())
+  reviews         Review[]
 }
 
 model Review {

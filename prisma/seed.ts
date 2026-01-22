@@ -27,6 +27,14 @@ async function main() {
 
   await prisma.scraperSource.createMany({
     data: [
+      // Epoch AI - Primary source for curated AI model releases
+      {
+        type: "csv",
+        name: "Epoch AI Notable Models",
+        url: "https://epoch.ai/data/notable_ai_models.csv",
+        company: "Epoch AI",
+        enabled: true,
+      },
       // Reddit sources
       {
         type: "reddit",
@@ -154,6 +162,9 @@ async function main() {
       pricing: "Input: $30/1M tokens, Output: $60/1M tokens (8K)",
       docsUrl: "https://platform.openai.com/docs/models/gpt-4",
       sourceUrl: "https://openai.com/research/gpt-4",
+      isCodingRelated: true,
+      domain: "Language",
+      parameters: "1.76T",
     },
   });
 
@@ -174,6 +185,8 @@ async function main() {
       pricing: "Input: $8/1M tokens, Output: $24/1M tokens",
       docsUrl: "https://docs.anthropic.com/claude/docs",
       sourceUrl: "https://www.anthropic.com/news/claude-2",
+      isCodingRelated: true,
+      domain: "Language",
     },
   });
 
@@ -214,6 +227,9 @@ async function main() {
       pricing: "Free and open source",
       docsUrl: "https://llama.meta.com/docs/",
       sourceUrl: "https://ai.meta.com/blog/code-llama-large-language-model-coding/",
+      isCodingRelated: true,
+      domain: "Language",
+      parameters: "34B",
     },
   });
 
@@ -338,6 +354,8 @@ async function main() {
       pricing: "$20/month Pro, Free tier available",
       docsUrl: "https://cursor.sh/docs",
       sourceUrl: "https://cursor.sh/",
+      isCodingRelated: true,
+      domain: "Tool",
     },
   });
 
@@ -478,6 +496,8 @@ async function main() {
       pricing: "Usage-based via Claude API",
       docsUrl: "https://docs.anthropic.com/claude-code",
       sourceUrl: "https://www.anthropic.com/news/claude-code",
+      isCodingRelated: true,
+      domain: "Tool",
     },
   });
 
@@ -582,6 +602,8 @@ async function main() {
       pricing: "Input: $12/1M tokens, Output: $36/1M tokens",
       docsUrl: "https://platform.openai.com/docs/models/gpt-5-codex",
       sourceUrl: "https://openai.com/index/gpt-5-codex",
+      isCodingRelated: true,
+      domain: "Language",
     },
   });
 
@@ -622,6 +644,8 @@ async function main() {
       pricing: "Usage-based via Claude API",
       docsUrl: "https://docs.anthropic.com/claude-code",
       sourceUrl: "https://www.anthropic.com/news/claude-code-2",
+      isCodingRelated: true,
+      domain: "Tool",
     },
   });
 
@@ -682,6 +706,8 @@ async function main() {
       pricing: "Input: $20/1M tokens, Output: $60/1M tokens",
       docsUrl: "https://platform.openai.com/docs/models/gpt-5-codex-max",
       sourceUrl: "https://openai.com/index/gpt-5-1-codex-max",
+      isCodingRelated: true,
+      domain: "Language",
     },
   });
 
@@ -742,6 +768,8 @@ async function main() {
       pricing: "Input: $12/1M tokens, Output: $36/1M tokens",
       docsUrl: "https://platform.openai.com/docs/models/gpt-5-codex",
       sourceUrl: "https://openai.com/index/gpt-5-2-codex",
+      isCodingRelated: true,
+      domain: "Language",
     },
   });
 

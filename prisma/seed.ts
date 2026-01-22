@@ -80,7 +80,14 @@ async function main() {
         company: "Google",
         enabled: true,
       },
-      // Expert blogs - user requested
+      {
+        type: "rss",
+        name: "Meta AI Blog",
+        url: "https://ai.meta.com/blog/rss/",
+        company: "Meta",
+        enabled: true,
+      },
+      // Expert blogs - used for collecting REVIEWS (not releases)
       {
         type: "blog",
         name: "Andrej Karpathy Blog",
@@ -95,7 +102,6 @@ async function main() {
         company: "Independent",
         enabled: true,
       },
-      // Expert blogs - discovered via research
       {
         type: "rss",
         name: "Simon Willison's Weblog",

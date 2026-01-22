@@ -23,6 +23,27 @@ const RELEASE_KEYWORDS = [
   "general availability",
 ];
 
+// Allowed companies for major AI releases
+const ALLOWED_COMPANIES = [
+  "openai",
+  "anthropic",
+  "meta",
+  "google",
+  "mistral",
+];
+
+// Coding tools we want to track (regardless of company)
+const CODING_TOOL_KEYWORDS = [
+  "claude code",
+  "codex",
+  "copilot",
+  "cursor",
+  "aider",
+  "cody",
+  "code interpreter",
+  "coding assistant",
+];
+
 // Keywords to determine category
 const MODEL_KEYWORDS = [
   "model",
@@ -45,9 +66,43 @@ function categorizeRelease(title: string, content: string): "model" | "tool" {
   return modelScore >= toolScore ? "model" : "tool";
 }
 
+function isCodingTool(title: string, content: string): boolean {
+  const text = `${title} ${content}`.toLowerCase();
+  return CODING_TOOL_KEYWORDS.some((kw) => text.includes(kw));
+}
+
+function isFromAllowedCompany(company: string): boolean {
+  return ALLOWED_COMPANIES.some((allowed) =>
+    company.toLowerCase().includes(allowed)
+  );
+}
+
 function isReleaseAnnouncement(title: string, content: string): boolean {
   const text = `${title} ${content}`.toLowerCase();
   return RELEASE_KEYWORDS.some((kw) => text.includes(kw));
+}
+
+function isMajorRelease(
+  title: string,
+  content: string,
+  company: string
+): boolean {
+  // Must have release keywords
+  if (!isReleaseAnnouncement(title, content)) {
+    return false;
+  }
+
+  // Accept if it's from an allowed major company
+  if (isFromAllowedCompany(company)) {
+    return true;
+  }
+
+  // Accept if it's a coding tool we care about
+  if (isCodingTool(title, content)) {
+    return true;
+  }
+
+  return false;
 }
 
 async function fetchWithTimeout(
@@ -102,8 +157,10 @@ async function parseRSSFeed(
 
       const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || "";
 
-      if (title && isReleaseAnnouncement(title, description)) {
-        const category = categorizeRelease(title, description);
+      if (title && isMajorRelease(title, description, company)) {
+        const category = isCodingTool(title, description)
+          ? "tool"
+          : categorizeRelease(title, description);
 
         releases.push({
           name: title,
